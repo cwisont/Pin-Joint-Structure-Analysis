@@ -1,6 +1,8 @@
 
 from math import *
 import numpy as np
+from scipy import linalg as linalg
+from Indeterminacy import *
 
 def AmendolaPreset(preStrain = 0.036,Q = 0.048e2):
     '''
@@ -647,145 +649,6 @@ class StackedSimplex:
         self.l = l
         self.postConfine = False
 
-#EQTR
-def EQTR3 (NODES,ELEM):
-
-    '''The function EQTR returns the equilibrium matrix for any 3D truss
-    NODES is list of the nodal coordinates of each vertex of the truss and the constraints on each
-    NODES should be an nx6 array where the last 3 positions are either 1 or 0 indicating if there is a kinematic constraint in that direction
-    ELEM is an array containing the connectivity of the truss and the type of each member
-    ELEM stores the type of member in column 1 and the vertex numbers in columns 2 and 3
-    '''
-    for i in [1]:
-
-        import numpy as np
-        import math as m
-        np.set_printoptions(threshold=np.inf)
-
-        [nnode, var] = np.shape(NODES)
-
-        if var != 6:
-            raise Exception ('Error: NODE matrix of incorrect size')
-
-        [nelem,lelem] = np.shape(ELEM)
-
-        #Add remove constrained vertices and determine the degrees of freedom
-        #ROWNO(i,j)=0 => displ. of node i in dir. j is constrained, hence no contribution to EQUIL
-        #ROWNO(i,j)=n => contribution of d.o.f. j of node i to be stored in row no. n of EQUIL
-        ROWNO = np.zeros([nnode,3])
-        icount = 0
-        for i in range(0,nnode):
-            for j in range(0,3):
-                if (NODES[i,j+3] == 0):
-                    icount+=1
-                    ROWNO[i,j] = icount
-                else:
-                    ROWNO[i,j] = 0
-
-
-        ndof = icount+1
-        EQUIL = np.zeros([ndof-1,ELEM.shape[0]])
-        icol = -1
-
-        for ielem in range(0,nelem):
-
-
-            if (ELEM[ielem,0] == 1): #If the member is a pin jointed bar
-
-                icol+=1
-                C = np.concatenate((NODES[ELEM[ielem,1],0:3],NODES[ELEM[ielem,2],0:3]))
-                len = m.sqrt((C[0]-C[3])**2+(C[1]-C[4])**2+(C[2]-C[5])**2)
-                x = (C[0]-C[3])/len
-                y = (C[1]-C[4])/len
-                z = (C[2]-C[5])/len
-                EQ1=[x,y,z,-x,-y,-z];
-                ii = -1
-                for i in range(1,3):
-                    for j in range(0,3):
-                        ii+=1
-                        irow = int(ROWNO[ELEM[ielem,i],j])
-                        if (irow > 0):
-                            EQUIL[irow-1,icol] = EQ1[ii]
-
-
-            elif (ELEM[ielem,0] == 2):  #member is a constant tension cable
-
-                icol +=1
-                for j in range(1,lelem-1):
-                    if (ELEM[ielem,j+1] != -1):
-                        C = np.concatenate((NODES[ELEM[ielem,j],0:3],NODES[ELEM[ielem,j+1],0:3]))
-                        len = m.sqrt((C[0]-C[3])**2+(C[1]-C[4])**2+(C[2]-C[5])**2)
-                        x = (C[0]-C[3])/len
-                        y = (C[1]-C[4])/len
-                        z = (C[2]-C[5])/len
-                        EQ1=[x,y,z,-x,-y,-z];
-                        ii = -1
-                        for i in range(j,j+2):
-                            for jj in range(0,3):
-                                ii+=1;
-                                irow=int(ROWNO[ELEM[ielem,i],jj])
-                                if (irow > 0):
-                                    EQUIL[irow-1,icol]+=EQ1[ii];
-
-            else:
-                raise Exception('Error in array ELEM, Unknown element type')
-    # # print(EQUIL)
-
-   ##Find and remove rigid body mechanisms
-    #Make C matrix of kinematic constraints
-    D = linalg.null_space(np.transpose(EQUIL)) #A basis for the set of inextensional mechanisms
-    C = []
-    k = NODES[:,3:6]
-    # k = np.reshape(k,(np.shape(k)[0]*3,1))
-    (X,Y) = np.where(k==1)
-    V = NODES[:,0:3]
-    for i,x in enumerate(X):
-        CX = [[1,0,0,0,V[x,2],-V[x,1]],[0,1,0,-V[x,2],0,V[x,0]],[0,0,1,V[x,1],-V[x,0],0]] #Constraint equations for x,y,and z kinematic constraints
-        C += [CX[Y[i]][:]]
-
-    C = np.asarray(C)
-    if C.size == 0:
-        D = linalg.null_space(EQUIL.T)
-        m = np.shape(D)[1]
-        return EQUIL,D,m
-
-    nr = linalg.null_space(C)
-
-    if nr.size==0 or C.size ==0: #If fully constrained
-        D = linalg.null_space(EQUIL.T)
-        m = np.shape(D)[1]
-        return EQUIL,D,m
-    U=[]
-    for v in V:
-        U += [nr[:3]+np.cross(nr[3:].T,v).T] #rigid body mechanism in terms of coordinates
-    U = np.asarray(U)
-    U = np.reshape(U,(np.shape(U)[0]*np.shape(U)[1],np.shape(U)[2]))
-    U = np.delete(U,3*X+Y,axis = 0) #remove directions stopped by constraints
-    # U = np.reshape(U,(np.shape(U)[0],1))
-
-    rb = 6 - np.linalg.matrix_rank(C) #Total number of rigid body mechanisms
-    m = np.linalg.matrix_rank(linalg.null_space(np.transpose(EQUIL))) #Find number of inextensional mechanisms in EQUIL
-    B = linalg.null_space(C)
-    im = m - rb #The total number of non rigid body mechanisms
-
- #     A = linalg.null_space(np.transpose(EQUIL)) #Computes a basis for the system mechanisms
-    Delta = np.zeros((np.shape(D)[0]))
-    B = np.zeros((np.shape(D)))
-    for i in range(m):
-        for j in range(rb): #Orthogonalize rigid body mechanisms?
-            Delta += D[:,i].dot(U[:,j])/(np.linalg.norm(U[:,j]))**2 *U[:,j]
-        B[:,i] = D[:,i]-Delta
-        Delta = np.zeros((np.shape(D)[0]))
-
-
-
-    [non,p,re] = rref(B)
-    if p==[]: D = np.zeros((np.shape(D)[0],1))
-    else:
-        p = np.asarray(p)
-        D = D[:,p[:,0]]
-
-    return EQUIL,D,im
 
 
 

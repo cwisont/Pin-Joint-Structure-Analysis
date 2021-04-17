@@ -21,19 +21,16 @@ Other properties can be changed in this section such as the number of points on 
 ## Import modules
 import numpy as np
 from math import *
-from scipy import linalg as linalg
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import os.path
 import csv
+from scipy import linalg as linalg
 from scipy.optimize import curve_fit
 
-# from EQTR3 import EQTR3
-# from RREF import rref
-# from Structures import hangNet
-# from Indeterminacy import kinematicIndetermine,staticIndetermine
-
+from Indeterminacy import *
+from Structures_Class import *
 
 ## Control file directory
 
@@ -57,7 +54,7 @@ N = 25 #Number of points of evaluation
 saveResult = 0 #Saves the load data to a csv file at location of current path
 
 # Set up the parameters to run sweeps
-sc = -6 #length scale (um) sc is a scaling factor for the structure so that structures can easily be made at the um, mm, or m sizes
+sc = -6 # length scale (um) sc is a scaling factor for the structure so that structures can easily be made at the um, mm, or m sizes
 Q = (600e-6)/3
 H = 45
 wid = 45
@@ -71,21 +68,21 @@ for p in P:
     NAME = []
     for E_ in E_var:
 
-        T = [2.25,p]
+        T = [2.25, p]
         # Struct = hangNet();Q = Struct.Q;sc = Struct.sc
 
         # sc,Q,Struct = FraternaliPreset(preStrain = 0.072,Q = 80)
 
-        # Struct = icosahedron(H,H,T,E1 = E_, E2 = E_,shrink = 0.05,postConfine = True)
+        Struct = icosahedron(H,H,T,E1 = E_, E2 = E_,shrink = 0.05,postConfine = True)
 
         # theta2 = OneDFormFind('simplex',H,wid)
-        Struct =  StackedSimplex(H,wid,T,E1 = 36e9,E2 = 36e9,n = 3,m = 3)
+        # Struct = StackedSimplex(H,wid,T,E1 = 36e9,E2 = 36e9,n = 3,m = 3)
 
         # Struct = simplex(H,wid,T,E1 = E_, E2 = E_,postConfine = True)
 
         # Struct = tetrakaidecahedron(H,wid,T,E1 = 36e9, E2 = 36e9,postConfine = True)
 
-        ctrlE = False #Takes stiffness from specification or from class (false = take from class)
+        ctrlE = False # Takes stiffness from specification or from class (false = take from class)
         LW = Struct.LW
         Height = str(int(H))
         Width = str(int(wid))
@@ -128,6 +125,7 @@ for p in P:
             K0 = V[:,3:]
         #
         V = np.squeeze(V)
+
         C = np.reshape(C,(len(C),3))
         T = np.reshape(T,(len(T),1))
         T_post = np.reshape(T_post,(len(T_post),1))
